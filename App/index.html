@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Ganttify: Homework Timeline</title>
+  <!-- Include ICAL.js from jsDelivr (for parsing .ics files) -->
+  <script src="https://cdn.jsdelivr.net/npm/ical.js@1.4.0/build/ical.js"></script>
+  <!-- Include Frappe Gantt CSS & JS from unpkg -->
+  <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css">
+  <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      padding: 20px;
+    }
+    input[type="text"] {
+      width: 60%;
+      padding: 5px;
+    }
+    button {
+      padding: 5px 10px;
+      margin-left: 10px;
+    }
+    #gantt {
+      max-width: 100%;
+      height: 600px;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Ganttify: Homework Timeline</h1>
+    <p>Enter the ICS feed URL (from Moodle/Canvas):</p>
+    <input id="icalUrl" type="text" placeholder="https://example.com/calendar.ics">
+    <button id="loadButton">Load Chart</button>
+  </div>
+
+  <!-- Container for the Gantt chart -->
+  <div id="gantt"></div>
+
+  <script>
+    // Listen for clicks on the "Load Chart" button.
+    document.getElementById('loadButton').addEventListener('click', () => {
+      const icalUrl = document.getElementById('icalUrl').value.trim();
+      if (!icalUrl) {
+        alert('Please enter a valid ICS URL.');
+        return;
+      }
+      fetchIcsAndRenderGantt(icalUrl);
+    });
+
+    // Function to fetch the ICS file, parse it, and render the Gantt chart.
+    async function fetchIcsAndRenderGantt(icalUrl) {
+      try {
+        // Uncomment the following lines to use a CORS proxy if you run into CORS issues:
+        // const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+        // const response = await fetch(proxyUrl + icalUrl);
+        
+        // Fetch the ICS data directly:
+        const response = await fetch(icalUrl);
+        
+        if (!response.ok) {
+          throw new Error("Fetching ICS failed. Possibly a CORS issue or invalid URL.");
+        }
+        const icalText = await response.text();
+
+        // Parse the ICS data with ICAL.js
+        const jcalData = ICAL.parse(icalText);
+        const component = new ICAL.Component(jcalData);
+        const vevents = component.getAllSubcomponents('vevent');
+
+        // Map each calendar event to a Frappe Gantt task object.
+        const tasks = vevents.map((vevent, index) => {
+          const event = new ICAL.Event(vevent);
+          const startJSDate = event.startDate.toJSDate();
+          const endJSDate = event.endDate.toJSDate();
+
+          return {
+            id: event.uid || `task_${index}`,
+            name: event.summary || "No Title",
+            start: formatDateIso(startJSDate), // Format: YYYY-MM-DD
+            end: formatDateIso(endJSDate),
+            progress: 0,                       // Default progress value (can be dynamic)
+            dependencies: ""                   // Comma-separated task IDs, if applicable
+          };
+        });
+
+        // Clear any previous Gantt chart
+        document.getElementById('gantt').innerHTML = "";
+
+        // Render the Gantt chart with Frappe Gantt.
+        new Gantt("#gantt", tasks, {
+          view_mode: "Day",
+          date_format: "YYYY-MM-DD",
+          custom_popup_html: function(task) {
+            return `
+              <div style="padding:10px;">
+                <h5>${task.name}</h5>
+                <p><strong>Start:</strong> ${task.start}</p>
+                <p><strong>End:</strong> ${task.end}</p>
+              </div>
+            `;
+          }
+        });
+      } catch (err) {
+        console.error(err);
+        alert("Error: " + err.message);
+      }
+    }
+
+    // Utility function to format a JavaScript Date object as YYYY-MM-DD.
+    function formatDateIso(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  </script>
+</body>
+</html>
